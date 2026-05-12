@@ -1,35 +1,23 @@
 import streamlit as st
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, pipeline
+from transformers import pipeline
 
 # -----------------------------
-# Sentiment model (safe)
+# Load robust sentiment model
 # -----------------------------
 @st.cache_resource
 def load_sentiment():
     return pipeline(
-        "sentiment-analysis",
-        model="distilbert-base-uncased-finetuned-sst-2-english"
+        "text-classification",
+        model="tabularisai/robust-sentiment-analysis",
+        top_k=None
     )
 
-# -----------------------------
-# FLAN-T5 LOADER (FIXED - NO PIPELINE TASK)
-# -----------------------------
-@st.cache_resource
-def load_explainer():
-    model_name = "google/flan-t5-base"
-
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
-
-    return tokenizer, model
-
 sentiment_model = load_sentiment()
-tokenizer, explainer_model = load_explainer()
 
 # -----------------------------
 # UI
 # -----------------------------
-st.title("🧠 AI Sentiment Analyzer (FIXED FINAL)")
+st.title("🧠 Robust Sentiment Analysis App")
 
 text = st.text_area(
     "Enter text",
@@ -37,7 +25,7 @@ text = st.text_area(
 )
 
 # -----------------------------
-# RUN
+# Run analysis
 # -----------------------------
 if st.button("Analyze"):
 
@@ -45,40 +33,14 @@ if st.button("Analyze"):
         st.warning("Please enter text")
         st.stop()
 
-    # -------------------------
-    # 1. Sentiment
-    # -------------------------
-    result = sentiment_model(text)[0]
+    result = sentiment_model(text)
 
-    label = result["label"]
-    score = result["score"]
+    st.subheader("📊 Results")
 
-    st.subheader("📊 Sentiment")
-    st.success(f"{label} ({score:.2f})")
+    # result format: list of labels with scores
+    for item in result[0]:
+        st.write(f"{item['label']} → {item['score']:.3f}")
 
-    # -------------------------
-    # 2. Explanation (NO PIPELINE)
-    # -------------------------
-    prompt = f"""
-Explain sentiment in simple terms.
+    best = max(result[0], key=lambda x: x["score"])
 
-Text:
-{text}
-
-Sentiment:
-{label}
-
-Give explanation and key emotional words.
-"""
-
-    inputs = tokenizer(prompt, return_tensors="pt", truncation=True)
-
-    outputs = explainer_model.generate(
-        **inputs,
-        max_new_tokens=150
-    )
-
-    explanation = tokenizer.decode(outputs[0], skip_special_tokens=True)
-
-    st.subheader("💡 Explanation")
-    st.write(explanation)
+    st.success(f"Final Sentiment: {best['label']} ({best['score']:.2f})")
