@@ -1,19 +1,29 @@
 import streamlit as st
+from transformers import pipeline
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
 # -----------------------------
-# Load analyzer
+# Load models
 # -----------------------------
 @st.cache_resource
-def load_vader():
-    return SentimentIntensityAnalyzer()
+def load_models():
 
-analyzer = load_vader()
+    sentiment_model = pipeline(
+        "sentiment-analysis",
+        model="distilbert-base-uncased-finetuned-sst-2-english"
+    )
+
+    vader = SentimentIntensityAnalyzer()
+
+    return sentiment_model, vader
+
+
+sentiment_model, vader = load_models()
 
 # -----------------------------
 # UI
 # -----------------------------
-st.title("🧠 Sentiment + Word Explainer (Lexicon-Based)")
+st.title("🧠 Hybrid Sentiment AI (DistilBERT + VADER Explainability)")
 
 text = st.text_area(
     "Enter text",
@@ -30,23 +40,28 @@ if st.button("Analyze"):
         st.stop()
 
     # -------------------------
-    # Sentiment score
+    # 1. DistilBERT (FINAL SENTIMENT)
     # -------------------------
-    scores = analyzer.polarity_scores(text)
+    result = sentiment_model(text)[0]
 
-    st.subheader("📊 Sentiment Scores")
-    st.write(scores)
+    label = result["label"]
+    score = result["score"]
+
+    st.subheader("📊 Final Sentiment (DistilBERT)")
+    st.success(f"{label} ({score:.2f})")
 
     # -------------------------
-    # Extract words
+    # 2. VADER (WORD INSIGHT)
     # -------------------------
+    st.subheader("🔍 Word-Level Insight (VADER)")
+
     words = text.lower().split()
 
     pos_words = []
     neg_words = []
 
     for word in words:
-        score = analyzer.lexicon.get(word)
+        score = vader.lexicon.get(word)
 
         if score is not None:
             if score > 0:
@@ -54,26 +69,24 @@ if st.button("Analyze"):
             elif score < 0:
                 neg_words.append(word)
 
-    # -------------------------
-    # Display results
-    # -------------------------
-    st.subheader("🔍 Positive Words Found")
-    st.write(pos_words if pos_words else "None")
-
-    st.subheader("🔍 Negative Words Found")
-    st.write(neg_words if neg_words else "None")
+    st.write("Positive words:", pos_words if pos_words else "None")
+    st.write("Negative words:", neg_words if neg_words else "None")
 
     # -------------------------
-    # Final decision
+    # 3. Explanation
     # -------------------------
-    compound = scores["compound"]
+    st.subheader("💡 Why this result?")
 
-    if compound >= 0.05:
-        final = "POSITIVE"
-    elif compound <= -0.05:
-        final = "NEGATIVE"
-    else:
-        final = "NEUTRAL"
+    explanation = f"""
+The model predicted **{label}** because:
 
-    st.subheader("🧠 Final Sentiment")
-    st.success(final)
+- DistilBERT analyzed the full sentence context.
+- It detected overall sentiment strength ({score:.2f} confidence).
+- Word-level signals show:
+    - Positive cues: {pos_words if pos_words else "none"}
+    - Negative cues: {neg_words if neg_words else "none"}
+
+Final decision is based on contextual understanding, not just keywords.
+"""
+
+    st.write(explanation)
