@@ -1,26 +1,28 @@
 import streamlit as st
-from transformers import pipeline
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 
 # -----------------------------
-# Load model safely (NO task errors)
+# Load model safely (NO PIPELINE)
 # -----------------------------
 @st.cache_resource
 def load_model():
-    return pipeline(
-        "text-generation",
-        model="google/flan-t5-base"
-    )
+    model_name = "google/flan-t5-base"
 
-model = load_model()
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
+
+    return tokenizer, model
+
+tokenizer, model = load_model()
 
 # -----------------------------
 # UI
 # -----------------------------
-st.title("🧠 Sentiment Analysis AI (Fixed Version)")
+st.title("🧠 Sentiment Analysis AI (Fully Fixed)")
 
 text = st.text_area(
     "Enter text",
-    value="I love the product but the experience was very frustrating and confusing."
+    value="I love the product but the experience was frustrating and confusing."
 )
 
 # -----------------------------
@@ -39,19 +41,19 @@ Text:
 {text}
 
 Return:
-1. Sentiment (Positive / Negative / Neutral / Mixed)
-2. Short explanation
-3. Key emotional words
+Sentiment, Explanation, Key words
 """
 
-    with st.spinner("AI thinking..."):
+    with st.spinner("AI is thinking..."):
 
-        result = model(
-            prompt,
-            max_new_tokens=150,
-            do_sample=False,
-            return_full_text=False
-        )[0]["generated_text"]
+        inputs = tokenizer(prompt, return_tensors="pt", truncation=True)
+
+        outputs = model.generate(
+            **inputs,
+            max_new_tokens=150
+        )
+
+        result = tokenizer.decode(outputs[0], skip_special_tokens=True)
 
     st.subheader("🤖 Result")
     st.write(result)
