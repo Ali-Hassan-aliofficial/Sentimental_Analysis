@@ -23,7 +23,7 @@ sentiment_model, vader = load_models()
 # -----------------------------
 # UI
 # -----------------------------
-st.title("🧠 Hybrid Sentiment AI (DistilBERT + VADER Explainability)")
+st.title("🧠 Sentiment Analysis AI")
 
 text = st.text_area(
     "Enter text",
@@ -31,7 +31,7 @@ text = st.text_area(
 )
 
 # -----------------------------
-# Run analysis
+# Run
 # -----------------------------
 if st.button("Analyze"):
 
@@ -40,18 +40,15 @@ if st.button("Analyze"):
         st.stop()
 
     # -----------------------------
-    # 1. DistilBERT SENTIMENT
+    # Sentiment prediction
     # -----------------------------
     result = sentiment_model(text)[0]
 
     label = result["label"]
-    confidence = result["score"]
-
-    st.subheader("📊 Final Sentiment (AI Model)")
-    st.success(f"{label} ({confidence:.2f})")
+    confidence = result["score"]  # full float, no rounding
 
     # -----------------------------
-    # 2. VADER WORD ANALYSIS
+    # VADER word extraction (internal use only)
     # -----------------------------
     words = text.lower().split()
 
@@ -59,35 +56,44 @@ if st.button("Analyze"):
     neg_words = []
 
     for word in words:
-        vader_score = vader.lexicon.get(word)
+        score = vader.lexicon.get(word)
 
-        if vader_score is not None:
-            if vader_score > 0:
+        if score is not None:
+            if score > 0:
                 pos_words.append(word)
-            elif vader_score < 0:
+            elif score < 0:
                 neg_words.append(word)
 
-    st.subheader("🔍 Word-Level Explanation (VADER)")
+    # -----------------------------
+    # CLEAN OUTPUT (NO MODEL INFO)
+    # -----------------------------
+    st.subheader("📊 Result")
 
-    st.write("Positive words:", pos_words if pos_words else "None")
-    st.write("Negative words:", neg_words if neg_words else "None")
+    st.success(f"Sentiment: {label}")
+    st.info(f"Confidence: {confidence}")
 
     # -----------------------------
-    # 3. Explanation
+    # USER-FACING EXPLANATION (NO TECH DETAILS)
     # -----------------------------
-    st.subheader("💡 Why this prediction?")
+    st.subheader("💡 Insight")
 
-    explanation = f"""
-The final sentiment is **{label}** with confidence **{confidence:.2f}**.
+    if label == "NEGATIVE":
+        msg = "The text contains stronger negative emotional tone than positive tone."
+    elif label == "POSITIVE":
+        msg = "The text contains stronger positive emotional tone than negative tone."
+    else:
+        msg = "The text shows a balanced or neutral emotional tone."
 
-Reasoning:
-- DistilBERT analyzed full context of the sentence.
-- It does NOT rely only on keywords.
-- VADER detected keyword signals:
-    - Positive: {pos_words if pos_words else "none"}
-    - Negative: {neg_words if neg_words else "none"}
+    st.write(msg)
 
-Final decision is based on contextual understanding + lexical signals.
-"""
+    # -----------------------------
+    # OPTIONAL: subtle word insight (NO labels like VADER)
+    # -----------------------------
+    if pos_words or neg_words:
+        st.write("Key emotional signals were detected in the text.")
 
-    st.write(explanation)
+        if pos_words:
+            st.write("Positive cues:", pos_words)
+
+        if neg_words:
+            st.write("Negative cues:", neg_words)
