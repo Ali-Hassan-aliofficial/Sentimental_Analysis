@@ -1,9 +1,8 @@
 import streamlit as st
 from transformers import AutoTokenizer, AutoModelForSequenceClassification, pipeline
-import torch
 
 # -----------------------------
-# Load model (FAST + STABLE)
+# Load model (cached)
 # -----------------------------
 @st.cache_resource
 def load_model():
@@ -21,11 +20,14 @@ def load_model():
 
 classifier = load_model()
 
-st.title("🧠 Sentiment Analysis (Stable AI Version)")
+# -----------------------------
+# UI
+# -----------------------------
+st.title("🧠 Sentiment Analysis App (Stable Version)")
 
 text = st.text_area(
-    "Enter text",
-    value="I love the product but the experience was sometimes frustrating and slow"
+    "Enter your text",
+    value="I love this product but the experience was frustrating and slow"
 )
 
 # -----------------------------
@@ -34,61 +36,70 @@ text = st.text_area(
 if st.button("Analyze"):
 
     if not text.strip():
-        st.warning("Please enter text")
+        st.warning("Please enter some text.")
         st.stop()
 
-    with st.spinner("Analyzing sentiment..."):
+    with st.spinner("Analyzing..."):
 
-        output = classifier(text)[0]
+        raw_output = classifier(text)
 
     # -----------------------------
-    # Get best label
+    # FIX OUTPUT STRUCTURE
     # -----------------------------
-    best = max(output, key=lambda x: x["score"])
+    scores = raw_output[0]  # IMPORTANT FIX
+
+    best = max(scores, key=lambda x: x["score"])
+
     label = best["label"]
     score = best["score"]
 
+    # -----------------------------
+    # Label mapping
+    # -----------------------------
+    label_map = {
+        "LABEL_0": "NEGATIVE",
+        "LABEL_1": "NEUTRAL",
+        "LABEL_2": "POSITIVE"
+    }
+
+    pretty_label = label_map.get(label, label)
+
+    # -----------------------------
+    # Output
+    # -----------------------------
     st.subheader("📊 Prediction")
-    st.success(f"{label} ({score:.2f})")
+    st.success(f"{pretty_label} ({score:.2f})")
 
     # -----------------------------
-    # Simple explanation (NO SHAP)
+    # Simple explanation
     # -----------------------------
-    st.subheader("💡 Why this prediction?")
+    st.subheader("💡 Explanation")
 
-    tokens = text.lower().split()
+    words = text.lower().split()
 
-    positive_hints = []
-    negative_hints = []
+    positive_words = ["good", "love", "great", "awesome", "excellent", "happy", "smooth"]
+    negative_words = ["bad", "hate", "terrible", "slow", "frustrating", "worst", "chaotic"]
 
-    # lightweight heuristic using model probabilities (NOT word list)
-    for t in tokens:
+    pos_found = [w for w in words if w in positive_words]
+    neg_found = [w for w in words if w in negative_words]
 
-        if any(x in t for x in ["good", "love", "great", "awesome", "excellent"]):
-            positive_hints.append(t)
+    if pretty_label == "POSITIVE":
+        st.info("The model predicts POSITIVE sentiment based on overall tone.")
 
-        if any(x in t for x in ["bad", "hate", "terrible", "slow", "frustrating", "worst"]):
-            negative_hints.append(t)
-
-    # explanation logic
-    if label == "LABEL_2":
-        st.info("Model detected overall positive sentiment.")
-
-    elif label == "LABEL_0":
-        st.warning("Model detected negative sentiment.")
+    elif pretty_label == "NEGATIVE":
+        st.warning("The model predicts NEGATIVE sentiment based on negative cues.")
 
     else:
-        st.info("Model detected neutral/mixed sentiment.")
+        st.info("The model predicts NEUTRAL / MIXED sentiment.")
 
-    # show hints (light explanation only)
-    if positive_hints:
-        st.write("🟢 Positive cues:", positive_hints)
+    if pos_found:
+        st.write("🟢 Positive cues detected:", pos_found)
 
-    if negative_hints:
-        st.write("🔴 Negative cues:", negative_hints)
+    if neg_found:
+        st.write("🔴 Negative cues detected:", neg_found)
 
     # -----------------------------
     # Raw output
     # -----------------------------
-    st.subheader("🔍 Raw Model Scores")
-    st.write(output)
+    st.subheader("🔍 Raw Model Output")
+    st.write(scores)
