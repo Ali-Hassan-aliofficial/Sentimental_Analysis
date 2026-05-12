@@ -1,15 +1,15 @@
 import streamlit as st
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+from transformers import AutoTokenizer, AutoModelForCausalLM
 
 # -----------------------------
-# Load model safely (NO PIPELINE)
+# Load GPT-2
 # -----------------------------
 @st.cache_resource
 def load_model():
-    model_name = "google/flan-t5-base"
+    model_name = "gpt2"
 
     tokenizer = AutoTokenizer.from_pretrained(model_name)
-    model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
+    model = AutoModelForCausalLM.from_pretrained(model_name)
 
     return tokenizer, model
 
@@ -18,7 +18,7 @@ tokenizer, model = load_model()
 # -----------------------------
 # UI
 # -----------------------------
-st.title("🧠 Sentiment Analysis AI (Fully Fixed)")
+st.title("🧠 GPT-2 Sentiment Explainer (Demo Version)")
 
 text = st.text_area(
     "Enter text",
@@ -35,25 +35,31 @@ if st.button("Analyze"):
         st.stop()
 
     prompt = f"""
-Analyze sentiment.
+You are a sentiment analysis AI.
 
 Text:
 {text}
 
-Return:
-Sentiment, Explanation, Key words
+Step 1: Identify sentiment (Positive, Negative, or Mixed)
+Step 2: Explain why
+Step 3: List emotional words
+
+Answer:
 """
 
-    with st.spinner("AI is thinking..."):
+    with st.spinner("GPT-2 is generating response..."):
 
         inputs = tokenizer(prompt, return_tensors="pt", truncation=True)
 
         outputs = model.generate(
             **inputs,
-            max_new_tokens=150
+            max_new_tokens=120,
+            do_sample=True,
+            temperature=0.7,
+            top_p=0.9
         )
 
         result = tokenizer.decode(outputs[0], skip_special_tokens=True)
 
-    st.subheader("🤖 Result")
+    st.subheader("🤖 GPT-2 Response")
     st.write(result)
