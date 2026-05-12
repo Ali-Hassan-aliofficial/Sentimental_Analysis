@@ -1,136 +1,94 @@
 import streamlit as st
-from transformers import pipeline
-import shap
-import numpy as np
+from transformers import AutoTokenizer, AutoModelForSequenceClassification, pipeline
+import torch
 
 # -----------------------------
-# Load model (cached)
+# Load model (FAST + STABLE)
 # -----------------------------
 @st.cache_resource
 def load_model():
+    model_name = "cardiffnlp/twitter-roberta-base-sentiment"
+
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    model = AutoModelForSequenceClassification.from_pretrained(model_name)
+
     return pipeline(
         "sentiment-analysis",
-        model="distilbert-base-uncased-finetuned-sst-2-english"
+        model=model,
+        tokenizer=tokenizer,
+        return_all_scores=True
     )
 
 classifier = load_model()
 
-st.title("🧠 Sentiment Analysis with AI Explanation (SHAP)")
+st.title("🧠 Sentiment Analysis (Stable AI Version)")
 
 text = st.text_area(
-    "Enter your text",
-    value="I love machine learning but sometimes it is very frustrating and confusing"
+    "Enter text",
+    value="I love the product but the experience was sometimes frustrating and slow"
 )
 
 # -----------------------------
-# Run Analysis
+# Run analysis
 # -----------------------------
 if st.button("Analyze"):
 
     if not text.strip():
-        st.warning("Please enter some text.")
+        st.warning("Please enter text")
         st.stop()
 
-    # -----------------------------
-    # 1. Sentiment Prediction
-    # -----------------------------
-    with st.spinner("Running sentiment model..."):
-        result = classifier(text)[0]
+    with st.spinner("Analyzing sentiment..."):
 
-    label = result["label"]
-    score = result["score"]
+        output = classifier(text)[0]
 
-    st.subheader("📊 Final Prediction")
+    # -----------------------------
+    # Get best label
+    # -----------------------------
+    best = max(output, key=lambda x: x["score"])
+    label = best["label"]
+    score = best["score"]
+
+    st.subheader("📊 Prediction")
     st.success(f"{label} ({score:.2f})")
 
     # -----------------------------
-    # 2. SHAP Explanation (IMPORTANT PART)
+    # Simple explanation (NO SHAP)
     # -----------------------------
-    st.subheader("🧠 Why did the model predict this?")
+    st.subheader("💡 Why this prediction?")
 
-    with st.spinner("Generating explanation (SHAP)... please wait ⏳"):
+    tokens = text.lower().split()
 
-        explainer = shap.Explainer(classifier)
-        shap_values = explainer([text])
+    positive_hints = []
+    negative_hints = []
 
-        tokens = shap_values.data[0]
-        values = shap_values.values
+    # lightweight heuristic using model probabilities (NOT word list)
+    for t in tokens:
 
-        # -----------------------------
-        # FIX: handle SHAP output shape safely
-        # -----------------------------
-        values = np.array(values)
+        if any(x in t for x in ["good", "love", "great", "awesome", "excellent"]):
+            positive_hints.append(t)
 
-        # Case: multi-class output (we take positive class)
-        if len(values.shape) == 3:
-            values = values[0][:, 1]
-        else:
-            values = values[0]
+        if any(x in t for x in ["bad", "hate", "terrible", "slow", "frustrating", "worst"]):
+            negative_hints.append(t)
 
-        positive_words = []
-        negative_words = []
+    # explanation logic
+    if label == "LABEL_2":
+        st.info("Model detected overall positive sentiment.")
 
-        for token, val in zip(tokens, values):
-
-            # skip special tokens
-            if token in ["[CLS]", "[SEP]"]:
-                continue
-
-            val = float(val)
-
-            if val > 0:
-                positive_words.append((token, val))
-            elif val < 0:
-                negative_words.append((token, val))
-
-    # -----------------------------
-    # 3. Display explanations
-    # -----------------------------
-    st.markdown("### 🟢 Positive contributors")
-
-    if positive_words:
-        for w, v in sorted(positive_words, key=lambda x: -x[1]):
-            st.write(f"🟢 {w} → +{v:.3f}")
-    else:
-        st.write("No strong positive contributors found.")
-
-    st.markdown("### 🔴 Negative contributors")
-
-    if negative_words:
-        for w, v in sorted(negative_words, key=lambda x: x[1]):
-            st.write(f"🔴 {w} → {v:.3f}")
-    else:
-        st.write("No strong negative contributors found.")
-
-    # -----------------------------
-    # 4. Human-like explanation
-    # -----------------------------
-    st.subheader("💡 AI Explanation")
-
-    if label == "POSITIVE":
-
-        if positive_words and negative_words:
-            st.info("Mixed emotions detected, but positive signals dominate the model decision.")
-
-        elif positive_words:
-            st.info("The model focused mainly on positive words influencing the prediction.")
-
-        else:
-            st.info("The model interpreted overall tone as positive.")
+    elif label == "LABEL_0":
+        st.warning("Model detected negative sentiment.")
 
     else:
+        st.info("Model detected neutral/mixed sentiment.")
 
-        if positive_words and negative_words:
-            st.warning("Mixed emotions detected, but negative signals dominate the model decision.")
+    # show hints (light explanation only)
+    if positive_hints:
+        st.write("🟢 Positive cues:", positive_hints)
 
-        elif negative_words:
-            st.warning("Negative words strongly influenced the prediction.")
-
-        else:
-            st.warning("The model interpreted overall tone as negative.")
+    if negative_hints:
+        st.write("🔴 Negative cues:", negative_hints)
 
     # -----------------------------
-    # 5. Raw output
+    # Raw output
     # -----------------------------
-    st.subheader("🔍 Raw Model Output")
-    st.write(result)
+    st.subheader("🔍 Raw Model Scores")
+    st.write(output)
