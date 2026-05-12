@@ -2,22 +2,31 @@ import streamlit as st
 from transformers import pipeline
 
 # -----------------------------
-# Load robust sentiment model
+# Load models
 # -----------------------------
 @st.cache_resource
-def load_sentiment():
-    return pipeline(
+def load_models():
+
+    sentiment = pipeline(
+        "sentiment-analysis",
+        model="cardiffnlp/twitter-roberta-base-sentiment-latest"
+    )
+
+    emotion = pipeline(
         "text-classification",
-        model="tabularisai/robust-sentiment-analysis",
+        model="j-hartmann/emotion-english-distilroberta-base",
         top_k=None
     )
 
-sentiment_model = load_sentiment()
+    return sentiment, emotion
+
+
+sentiment_model, emotion_model = load_models()
 
 # -----------------------------
 # UI
 # -----------------------------
-st.title("🧠 Robust Sentiment Analysis App")
+st.title("🧠 Custom HF Sentiment + Emotion AI")
 
 text = st.text_area(
     "Enter text",
@@ -25,7 +34,7 @@ text = st.text_area(
 )
 
 # -----------------------------
-# Run analysis
+# Run
 # -----------------------------
 if st.button("Analyze"):
 
@@ -33,14 +42,35 @@ if st.button("Analyze"):
         st.warning("Please enter text")
         st.stop()
 
-    result = sentiment_model(text)
+    # -------------------------
+    # SENTIMENT
+    # -------------------------
+    sentiment = sentiment_model(text)[0]
 
-    st.subheader("📊 Results")
+    st.subheader("📊 Sentiment")
+    st.success(f"{sentiment['label']} ({sentiment['score']:.2f})")
 
-    # result format: list of labels with scores
-    for item in result[0]:
-        st.write(f"{item['label']} → {item['score']:.3f}")
+    # -------------------------
+    # EMOTIONS
+    # -------------------------
+    emotions = emotion_model(text)[0]
 
-    best = max(result[0], key=lambda x: x["score"])
+    st.subheader("🎭 Detected Emotions")
 
-    st.success(f"Final Sentiment: {best['label']} ({best['score']:.2f})")
+    for e in emotions:
+        st.write(f"{e['label']} → {e['score']:.2f}")
+
+    # -------------------------
+    # SIMPLE EXPLANATION LOGIC
+    # -------------------------
+    st.subheader("💡 Why this result?")
+
+    top_emotions = sorted(emotions, key=lambda x: x["score"], reverse=True)[:3]
+
+    explanation = "The model detected strong emotional signals: "
+
+    explanation += ", ".join([f"{e['label']}" for e in top_emotions])
+
+    explanation += f". Overall sentiment is {sentiment['label']} because these emotions dominate the text."
+
+    st.write(explanation)
