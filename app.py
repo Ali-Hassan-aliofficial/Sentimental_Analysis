@@ -1,30 +1,35 @@
 import streamlit as st
-from transformers import pipeline
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, pipeline
 
 # -----------------------------
-# Load models
+# Sentiment model (safe)
 # -----------------------------
 @st.cache_resource
-def load_sentiment_model():
+def load_sentiment():
     return pipeline(
         "sentiment-analysis",
         model="distilbert-base-uncased-finetuned-sst-2-english"
     )
 
+# -----------------------------
+# FLAN-T5 LOADER (FIXED - NO PIPELINE TASK)
+# -----------------------------
 @st.cache_resource
 def load_explainer():
-    return pipeline(
-        "text2text-generation",
-        model="google/flan-t5-base"
-    )
+    model_name = "google/flan-t5-base"
 
-sentiment_model = load_sentiment_model()
-explainer_model = load_explainer()
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
+
+    return tokenizer, model
+
+sentiment_model = load_sentiment()
+tokenizer, explainer_model = load_explainer()
 
 # -----------------------------
 # UI
 # -----------------------------
-st.title("🧠 AI Sentiment Analyzer Pro")
+st.title("🧠 AI Sentiment Analyzer (FIXED FINAL)")
 
 text = st.text_area(
     "Enter text",
@@ -32,7 +37,7 @@ text = st.text_area(
 )
 
 # -----------------------------
-# Run analysis
+# RUN
 # -----------------------------
 if st.button("Analyze"):
 
@@ -41,21 +46,21 @@ if st.button("Analyze"):
         st.stop()
 
     # -------------------------
-    # 1. SENTIMENT PREDICTION
+    # 1. Sentiment
     # -------------------------
     result = sentiment_model(text)[0]
 
     label = result["label"]
     score = result["score"]
 
-    st.subheader("📊 Sentiment Result")
+    st.subheader("📊 Sentiment")
     st.success(f"{label} ({score:.2f})")
 
     # -------------------------
-    # 2. EXPLANATION MODEL
+    # 2. Explanation (NO PIPELINE)
     # -------------------------
     prompt = f"""
-Explain the sentiment in simple terms.
+Explain sentiment in simple terms.
 
 Text:
 {text}
@@ -63,19 +68,17 @@ Text:
 Sentiment:
 {label}
 
-Give:
-- Reason
-- Positive words
-- Negative words
+Give explanation and key emotional words.
 """
 
-    with st.spinner("Generating explanation..."):
+    inputs = tokenizer(prompt, return_tensors="pt", truncation=True)
 
-        explanation = explainer_model(
-            prompt,
-            max_new_tokens=150,
-            do_sample=False
-        )[0]["generated_text"]
+    outputs = explainer_model.generate(
+        **inputs,
+        max_new_tokens=150
+    )
+
+    explanation = tokenizer.decode(outputs[0], skip_special_tokens=True)
 
     st.subheader("💡 Explanation")
     st.write(explanation)
