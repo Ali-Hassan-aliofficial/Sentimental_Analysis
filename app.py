@@ -8,16 +8,17 @@ from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 @st.cache_resource
 def load_models():
 
+    # Sentiment classifier
     sentiment_model = pipeline(
         "sentiment-analysis",
         model="distilbert-base-uncased-finetuned-sst-2-english"
     )
 
-    # FIX: use text-generation instead of text2text-generation
+    # Explanation model
     explainer = pipeline(
         "text-generation",
-        model="google/flan-t5-base",
-        max_new_tokens=80,
+        model="TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+        max_new_tokens=120,
         do_sample=False
     )
 
@@ -39,7 +40,7 @@ text = st.text_area(
 )
 
 # -----------------------------
-# Run
+# Analyze
 # -----------------------------
 if st.button("Analyze"):
 
@@ -48,7 +49,7 @@ if st.button("Analyze"):
         st.stop()
 
     # -----------------------------
-    # Sentiment
+    # Sentiment prediction
     # -----------------------------
     result = sentiment_model(text)[0]
 
@@ -56,22 +57,76 @@ if st.button("Analyze"):
     confidence = result["score"]
 
     # -----------------------------
-    # Explanation prompt
+    # Generate explanation
     # -----------------------------
-    prompt = (
-        f"Explain why this text is {label.lower()} sentiment in simple terms:\n\n"
-        f"{text}\n\n"
-        f"Answer:"
-    )
+    prompt = f"""
+<|system|>
+You are an AI sentiment explanation assistant.
 
-    explanation = explainer(prompt)[0]["generated_text"]
+<|user|>
+Text: "{text}"
+
+Sentiment: {label}
+
+Explain in 2-3 simple sentences WHY this sentiment was predicted.
+
+<|assistant|>
+"""
+
+    output = explainer(prompt)
+
+    explanation = output[0]["generated_text"]
+
+    # Remove prompt from output
+    explanation = explanation.replace(prompt, "").strip()
 
     # -----------------------------
-    # UI output
+    # Extract emotional words
+    # -----------------------------
+    words = text.lower().split()
+
+    pos_words = []
+    neg_words = []
+
+    for word in words:
+
+        clean_word = word.strip(".,!?()[]{}\"'")
+
+        score = vader.lexicon.get(clean_word)
+
+        if score is not None:
+
+            if score > 0:
+                pos_words.append(clean_word)
+
+            elif score < 0:
+                neg_words.append(clean_word)
+
+    # Remove duplicates
+    pos_words = list(set(pos_words))
+    neg_words = list(set(neg_words))
+
+    # -----------------------------
+    # OUTPUT
     # -----------------------------
     st.subheader("📊 Result")
+
     st.success(f"Sentiment: {label}")
     st.info(f"Confidence: {confidence}")
 
     st.subheader("💡 Explanation")
+
     st.write(explanation)
+
+    # -----------------------------
+    # Emotional cues
+    # -----------------------------
+    if pos_words or neg_words:
+
+        st.subheader("🔍 Emotional Signals")
+
+        if pos_words:
+            st.write("Positive cues:", pos_words)
+
+        if neg_words:
+            st.write("Negative cues:", neg_words)
