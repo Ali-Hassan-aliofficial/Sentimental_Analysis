@@ -1,5 +1,6 @@
 import streamlit as st
 from transformers import pipeline
+import re
 
 @st.cache_resource
 def load_classifier():
@@ -10,10 +11,23 @@ def load_classifier():
 
 classifier = load_classifier()
 
+# Simple keyword lists
+positive_words = [
+    "love", "great", "amazing", "excellent",
+    "good", "awesome", "happy", "best",
+    "fantastic", "wonderful"
+]
+
+negative_words = [
+    "hate", "bad", "terrible", "awful",
+    "worst", "sad", "angry", "horrible",
+    "disappointing", "poor"
+]
+
 st.title("Sentiment Analysis App")
 
 st.write(
-    "Enter a sentence below and click **Classify** to predict sentiment."
+    "Enter a sentence below and click classify."
 )
 
 text = st.text_area(
@@ -43,8 +57,69 @@ if st.button("Classify"):
                 st.success(f"Sentiment: {label}")
                 st.info(f"Confidence Score: {score:.3f}")
 
+                # -----------------------------
+                # Word Analysis
+                # -----------------------------
+
+                words = re.findall(r"\b\w+\b", text.lower())
+
+                detected_positive = []
+                detected_negative = []
+
+                for word in words:
+
+                    if word in positive_words:
+                        detected_positive.append(word)
+
+                    if word in negative_words:
+                        detected_negative.append(word)
+
+                st.subheader("Detected Important Words")
+
+                if detected_positive:
+                    st.write(
+                        f"Positive words found: {', '.join(detected_positive)}"
+                    )
+
+                if detected_negative:
+                    st.write(
+                        f"Negative words found: {', '.join(detected_negative)}"
+                    )
+
+                # -----------------------------
+                # Explanation
+                # -----------------------------
+
+                st.subheader("Why Did The Model Predict This?")
+
+                if label == "POSITIVE":
+
+                    if detected_positive:
+                        st.write(
+                            "The model predicted POSITIVE because it detected "
+                            "strong positive words and emotional tone."
+                        )
+
+                    else:
+                        st.write(
+                            "The sentence overall appeared emotionally positive."
+                        )
+
+                else:
+
+                    if detected_negative:
+                        st.write(
+                            "The model predicted NEGATIVE because it detected "
+                            "negative emotional words and tone."
+                        )
+
+                    else:
+                        st.write(
+                            "The sentence overall appeared emotionally negative."
+                        )
+
+                st.subheader("Raw Model Output")
                 st.write(result)
-                st.write(text)
 
             else:
                 st.write(result)
