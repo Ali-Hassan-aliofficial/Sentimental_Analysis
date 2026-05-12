@@ -1,32 +1,19 @@
 import streamlit as st
-from transformers import pipeline
+from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
 # -----------------------------
-# Load models
+# Load analyzer
 # -----------------------------
 @st.cache_resource
-def load_models():
+def load_vader():
+    return SentimentIntensityAnalyzer()
 
-    sentiment = pipeline(
-        "sentiment-analysis",
-        model="cardiffnlp/twitter-roberta-base-sentiment-latest"
-    )
-
-    emotion = pipeline(
-        "text-classification",
-        model="j-hartmann/emotion-english-distilroberta-base",
-        top_k=None
-    )
-
-    return sentiment, emotion
-
-
-sentiment_model, emotion_model = load_models()
+analyzer = load_vader()
 
 # -----------------------------
 # UI
 # -----------------------------
-st.title("🧠 Custom HF Sentiment + Emotion AI")
+st.title("🧠 Sentiment + Word Explainer (Lexicon-Based)")
 
 text = st.text_area(
     "Enter text",
@@ -43,34 +30,50 @@ if st.button("Analyze"):
         st.stop()
 
     # -------------------------
-    # SENTIMENT
+    # Sentiment score
     # -------------------------
-    sentiment = sentiment_model(text)[0]
+    scores = analyzer.polarity_scores(text)
 
-    st.subheader("📊 Sentiment")
-    st.success(f"{sentiment['label']} ({sentiment['score']:.2f})")
-
-    # -------------------------
-    # EMOTIONS
-    # -------------------------
-    emotions = emotion_model(text)[0]
-
-    st.subheader("🎭 Detected Emotions")
-
-    for e in emotions:
-        st.write(f"{e['label']} → {e['score']:.2f}")
+    st.subheader("📊 Sentiment Scores")
+    st.write(scores)
 
     # -------------------------
-    # SIMPLE EXPLANATION LOGIC
+    # Extract words
     # -------------------------
-    st.subheader("💡 Why this result?")
+    words = text.lower().split()
 
-    top_emotions = sorted(emotions, key=lambda x: x["score"], reverse=True)[:3]
+    pos_words = []
+    neg_words = []
 
-    explanation = "The model detected strong emotional signals: "
+    for word in words:
+        score = analyzer.lexicon.get(word)
 
-    explanation += ", ".join([f"{e['label']}" for e in top_emotions])
+        if score is not None:
+            if score > 0:
+                pos_words.append(word)
+            elif score < 0:
+                neg_words.append(word)
 
-    explanation += f". Overall sentiment is {sentiment['label']} because these emotions dominate the text."
+    # -------------------------
+    # Display results
+    # -------------------------
+    st.subheader("🔍 Positive Words Found")
+    st.write(pos_words if pos_words else "None")
 
-    st.write(explanation)
+    st.subheader("🔍 Negative Words Found")
+    st.write(neg_words if neg_words else "None")
+
+    # -------------------------
+    # Final decision
+    # -------------------------
+    compound = scores["compound"]
+
+    if compound >= 0.05:
+        final = "POSITIVE"
+    elif compound <= -0.05:
+        final = "NEGATIVE"
+    else:
+        final = "NEUTRAL"
+
+    st.subheader("🧠 Final Sentiment")
+    st.success(final)
