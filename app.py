@@ -3,7 +3,7 @@ from transformers import pipeline
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
 # -----------------------------
-# Load models
+# Load models (cached)
 # -----------------------------
 @st.cache_resource
 def load_models():
@@ -13,17 +13,23 @@ def load_models():
         model="distilbert-base-uncased-finetuned-sst-2-english"
     )
 
+    explainer = pipeline(
+        "text2text-generation",
+        model="google/flan-t5-base",
+        max_new_tokens=80
+    )
+
     vader = SentimentIntensityAnalyzer()
 
-    return sentiment_model, vader
+    return sentiment_model, explainer, vader
 
 
-sentiment_model, vader = load_models()
+sentiment_model, explainer, vader = load_models()
 
 # -----------------------------
 # UI
 # -----------------------------
-st.title("🧠 Sentiment Analysis AI")
+st.title("🧠 Explainable Sentiment AI")
 
 text = st.text_area(
     "Enter text",
@@ -31,7 +37,7 @@ text = st.text_area(
 )
 
 # -----------------------------
-# Run
+# Run analysis
 # -----------------------------
 if st.button("Analyze"):
 
@@ -40,15 +46,28 @@ if st.button("Analyze"):
         st.stop()
 
     # -----------------------------
-    # Sentiment prediction
+    # 1. Sentiment prediction
     # -----------------------------
     result = sentiment_model(text)[0]
 
     label = result["label"]
-    confidence = result["score"]  # full float, no rounding
+    confidence = result["score"]
 
     # -----------------------------
-    # VADER word extraction (internal use only)
+    # 2. Generate explanation (FLAN-T5)
+    # -----------------------------
+    prompt = f"""
+Explain in simple terms why this text is {label.lower()} sentiment.
+
+Text: {text}
+
+Give a short human-like explanation.
+"""
+
+    explanation = explainer(prompt)[0]["generated_text"]
+
+    # -----------------------------
+    # 3. VADER word signals (optional insight)
     # -----------------------------
     words = text.lower().split()
 
@@ -65,32 +84,22 @@ if st.button("Analyze"):
                 neg_words.append(word)
 
     # -----------------------------
-    # CLEAN OUTPUT (NO MODEL INFO)
+    # OUTPUT (clean product style)
     # -----------------------------
     st.subheader("📊 Result")
 
     st.success(f"Sentiment: {label}")
     st.info(f"Confidence: {confidence}")
 
-    # -----------------------------
-    # USER-FACING EXPLANATION (NO TECH DETAILS)
-    # -----------------------------
-    st.subheader("💡 Insight")
+    st.subheader("💡 Explanation")
 
-    if label == "NEGATIVE":
-        msg = "The text contains stronger negative emotional tone than positive tone."
-    elif label == "POSITIVE":
-        msg = "The text contains stronger positive emotional tone than negative tone."
-    else:
-        msg = "The text shows a balanced or neutral emotional tone."
-
-    st.write(msg)
+    st.write(explanation)
 
     # -----------------------------
-    # OPTIONAL: subtle word insight (NO labels like VADER)
+    # Optional insights (hidden intelligence layer)
     # -----------------------------
     if pos_words or neg_words:
-        st.write("Key emotional signals were detected in the text.")
+        st.subheader("🔍 Key Signals")
 
         if pos_words:
             st.write("Positive cues:", pos_words)
