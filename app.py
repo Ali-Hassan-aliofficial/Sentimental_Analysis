@@ -105,7 +105,7 @@ if st.button("Classify"):
 
     pos_count = results.count("POSITIVE")
     neg_count = results.count("NEGATIVE")
-    st.write(f"**Overall Model Sentiment:** {label} ({score:.2f})")
+    st.write(f"**Overall Model Sentiment:** {label} ({score})")
 
     if pos_count > neg_count:
         st.success("Overall Sentiment: POSITIVE (majority of sentences positive)")
