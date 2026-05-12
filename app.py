@@ -31,7 +31,7 @@ text = st.text_area(
 )
 
 # -----------------------------
-# Run
+# Run analysis
 # -----------------------------
 if st.button("Analyze"):
 
@@ -39,54 +39,55 @@ if st.button("Analyze"):
         st.warning("Please enter text")
         st.stop()
 
-    # -------------------------
-    # 1. DistilBERT (FINAL SENTIMENT)
-    # -------------------------
+    # -----------------------------
+    # 1. DistilBERT SENTIMENT
+    # -----------------------------
     result = sentiment_model(text)[0]
 
     label = result["label"]
-    score = result["score"]
+    confidence = result["score"]
 
-    st.subheader("📊 Final Sentiment (DistilBERT)")
-    st.success(f"{label} ({score:.2f})")
+    st.subheader("📊 Final Sentiment (AI Model)")
+    st.success(f"{label} ({confidence:.2f})")
 
-    # -------------------------
-    # 2. VADER (WORD INSIGHT)
-    # -------------------------
-    st.subheader("🔍 Word-Level Insight (VADER)")
-
+    # -----------------------------
+    # 2. VADER WORD ANALYSIS
+    # -----------------------------
     words = text.lower().split()
 
     pos_words = []
     neg_words = []
 
     for word in words:
-        score = vader.lexicon.get(word)
+        vader_score = vader.lexicon.get(word)
 
-        if score is not None:
-            if score > 0:
+        if vader_score is not None:
+            if vader_score > 0:
                 pos_words.append(word)
-            elif score < 0:
+            elif vader_score < 0:
                 neg_words.append(word)
+
+    st.subheader("🔍 Word-Level Explanation (VADER)")
 
     st.write("Positive words:", pos_words if pos_words else "None")
     st.write("Negative words:", neg_words if neg_words else "None")
 
-    # -------------------------
+    # -----------------------------
     # 3. Explanation
-    # -------------------------
-    st.subheader("💡 Why this result?")
+    # -----------------------------
+    st.subheader("💡 Why this prediction?")
 
     explanation = f"""
-The model predicted **{label}** because:
+The final sentiment is **{label}** with confidence **{confidence:.2f}**.
 
-- DistilBERT analyzed the full sentence context.
-- It detected overall sentiment strength ({score:.2f} confidence).
-- Word-level signals show:
-    - Positive cues: {pos_words if pos_words else "none"}
-    - Negative cues: {neg_words if neg_words else "none"}
+Reasoning:
+- DistilBERT analyzed full context of the sentence.
+- It does NOT rely only on keywords.
+- VADER detected keyword signals:
+    - Positive: {pos_words if pos_words else "none"}
+    - Negative: {neg_words if neg_words else "none"}
 
-Final decision is based on contextual understanding, not just keywords.
+Final decision is based on contextual understanding + lexical signals.
 """
 
     st.write(explanation)
