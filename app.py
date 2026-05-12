@@ -1,24 +1,30 @@
 import streamlit as st
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import pipeline
 
 # -----------------------------
-# Load GPT-2
+# Load models
 # -----------------------------
 @st.cache_resource
-def load_model():
-    model_name = "gpt2"
+def load_sentiment_model():
+    return pipeline(
+        "sentiment-analysis",
+        model="distilbert-base-uncased-finetuned-sst-2-english"
+    )
 
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    model = AutoModelForCausalLM.from_pretrained(model_name)
+@st.cache_resource
+def load_explainer():
+    return pipeline(
+        "text2text-generation",
+        model="google/flan-t5-base"
+    )
 
-    return tokenizer, model
-
-tokenizer, model = load_model()
+sentiment_model = load_sentiment_model()
+explainer_model = load_explainer()
 
 # -----------------------------
 # UI
 # -----------------------------
-st.title("🧠 GPT-2 Sentiment Explainer (Demo Version)")
+st.title("🧠 AI Sentiment Analyzer Pro")
 
 text = st.text_area(
     "Enter text",
@@ -26,7 +32,7 @@ text = st.text_area(
 )
 
 # -----------------------------
-# Run
+# Run analysis
 # -----------------------------
 if st.button("Analyze"):
 
@@ -34,32 +40,42 @@ if st.button("Analyze"):
         st.warning("Please enter text")
         st.stop()
 
+    # -------------------------
+    # 1. SENTIMENT PREDICTION
+    # -------------------------
+    result = sentiment_model(text)[0]
+
+    label = result["label"]
+    score = result["score"]
+
+    st.subheader("📊 Sentiment Result")
+    st.success(f"{label} ({score:.2f})")
+
+    # -------------------------
+    # 2. EXPLANATION MODEL
+    # -------------------------
     prompt = f"""
-You are a sentiment analysis AI.
+Explain the sentiment in simple terms.
 
 Text:
 {text}
 
-Step 1: Identify sentiment (Positive, Negative, or Mixed)
-Step 2: Explain why
-Step 3: List emotional words
+Sentiment:
+{label}
 
-Answer:
+Give:
+- Reason
+- Positive words
+- Negative words
 """
 
-    with st.spinner("GPT-2 is generating response..."):
+    with st.spinner("Generating explanation..."):
 
-        inputs = tokenizer(prompt, return_tensors="pt", truncation=True)
+        explanation = explainer_model(
+            prompt,
+            max_new_tokens=150,
+            do_sample=False
+        )[0]["generated_text"]
 
-        outputs = model.generate(
-            **inputs,
-            max_new_tokens=120,
-            do_sample=True,
-            temperature=0.7,
-            top_p=0.9
-        )
-
-        result = tokenizer.decode(outputs[0], skip_special_tokens=True)
-
-    st.subheader("🤖 GPT-2 Response")
-    st.write(result)
+    st.subheader("💡 Explanation")
+    st.write(explanation)
