@@ -23,7 +23,7 @@ classifier = load_model()
 # -----------------------------
 # UI
 # -----------------------------
-st.title("🧠 Advanced Sentiment Analysis App")
+st.title("🧠 Robust Sentiment Analysis App")
 
 text = st.text_area(
     "Enter your text",
@@ -43,25 +43,40 @@ if st.button("Analyze"):
         raw_output = classifier(text)
 
     # -----------------------------
-    # Normalize output
+    # Normalize output safely
     # -----------------------------
     if isinstance(raw_output, dict):
         scores = [raw_output]
 
-    elif isinstance(raw_output, list) and isinstance(raw_output[0], list):
+    elif isinstance(raw_output, list) and len(raw_output) > 0 and isinstance(raw_output[0], list):
         scores = raw_output[0]
 
-    else:
+    elif isinstance(raw_output, list):
         scores = raw_output
 
+    else:
+        st.error("Unexpected model output format.")
+        st.stop()
+
     # -----------------------------
-    # Sort scores
+    # Sort safely
     # -----------------------------
     scores = sorted(scores, key=lambda x: float(x["score"]), reverse=True)
 
     top1 = scores[0]
-    top2 = scores[1]
+    top1_score = float(top1["score"])
 
+    # safe second value
+    if len(scores) > 1:
+        top2 = scores[1]
+        top2_score = float(top2["score"])
+    else:
+        top2 = None
+        top2_score = 0.0
+
+    # -----------------------------
+    # Label mapping
+    # -----------------------------
     label_map = {
         "LABEL_0": "NEGATIVE",
         "LABEL_1": "NEUTRAL",
@@ -69,14 +84,11 @@ if st.button("Analyze"):
     }
 
     top_label = label_map.get(top1["label"], top1["label"])
-    top_score = float(top1["score"])
-
-    second_score = float(top2["score"])
 
     # -----------------------------
-    # MIXED detection logic
+    # MIXED detection
     # -----------------------------
-    if abs(top_score - second_score) < 0.15:
+    if top2 is not None and abs(top1_score - top2_score) < 0.15:
         final_label = "MIXED"
     else:
         final_label = top_label
@@ -87,16 +99,16 @@ if st.button("Analyze"):
     st.subheader("📊 Prediction")
 
     if final_label == "POSITIVE":
-        st.success(f"POSITIVE ({top_score:.2f})")
+        st.success(f"POSITIVE ({top1_score:.2f})")
 
     elif final_label == "NEGATIVE":
-        st.error(f"NEGATIVE ({top_score:.2f})")
+        st.error(f"NEGATIVE ({top1_score:.2f})")
 
     elif final_label == "NEUTRAL":
-        st.info(f"NEUTRAL ({top_score:.2f})")
+        st.info(f"NEUTRAL ({top1_score:.2f})")
 
     else:
-        st.warning(f"MIXED SENTIMENT ({top_score:.2f} vs {second_score:.2f})")
+        st.warning(f"MIXED SENTIMENT ({top1_score:.2f} vs {top2_score:.2f})")
 
     # -----------------------------
     # Explanation system
@@ -121,20 +133,14 @@ if st.button("Analyze"):
     neg_found = [w for w in words if w in negative_words]
 
     if final_label == "MIXED":
-        st.info("The model is uncertain — positive and negative signals are very close.")
-
+        st.info("Model is uncertain — positive and negative signals are very close.")
     elif final_label == "POSITIVE":
         st.info("Overall sentiment is positive.")
-
     elif final_label == "NEGATIVE":
         st.warning("Overall sentiment is negative.")
-
     else:
         st.info("Neutral sentiment detected.")
 
-    # -----------------------------
-    # Show cues
-    # -----------------------------
     if pos_found:
         st.write("🟢 Positive cues:", pos_found)
 
