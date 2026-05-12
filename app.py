@@ -44,6 +44,7 @@ if st.button("Classify"):
                 st.info(f"Confidence Score: {score:.3f}")
 
                 st.write(result)
+                st.write(text)
 
             else:
                 st.write(result)
